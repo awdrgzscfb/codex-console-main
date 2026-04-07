@@ -14,6 +14,8 @@ from ...database.session import get_db
 from ...database.models import EmailService as EmailServiceModel
 from ...database.models import Account as AccountModel
 from ...config.settings import get_settings
+from ...config.constants import OPENAI_PAGE_TYPES
+from ...core.register import RegistrationEngine
 from ...services import EmailServiceFactory, EmailServiceType
 
 logger = logging.getLogger(__name__)
@@ -84,6 +86,29 @@ class OutlookBatchImportResponse(BaseModel):
     failed: int
     accounts: List[Dict[str, Any]]
     errors: List[str]
+
+
+class OutlookRegistrationCheckRequest(BaseModel):
+    """Outlook 注册快检请求"""
+    service_ids: List[int]
+    remote_probe: bool = True
+
+
+class OutlookRegistrationCheckItem(BaseModel):
+    """Outlook 注册快检结果"""
+    service_id: int
+    email: str
+    suitable: bool
+    verdict: str
+    summary: str
+    local: Dict[str, Any]
+    probe: Optional[Dict[str, Any]] = None
+
+
+class OutlookRegistrationCheckResponse(BaseModel):
+    """Outlook 注册快检批量响应"""
+    total: int
+    results: List[OutlookRegistrationCheckItem]
 
 
 # ============== Helper Functions ==============
@@ -167,6 +192,133 @@ def service_to_response(service: EmailServiceModel) -> EmailServiceResponse:
         created_at=service.created_at.isoformat() if service.created_at else None,
         updated_at=service.updated_at.isoformat() if service.updated_at else None,
     )
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _collect_outlook_registration_check(
+    db,
+    service: EmailServiceModel,
+    *,
+    remote_probe: bool = True,
+) -> OutlookRegistrationCheckItem:
+    config = normalize_email_service_config(service.service_type, service.config)
+    email = str(config.get("email") or service.name or "").strip()
+    normalized_email = email.lower()
+    has_oauth = bool(config.get("client_id") and config.get("refresh_token"))
+    allow_imap_fallback = _as_bool(config.get("allow_imap_fallback"))
+    existing_account = None
+    if normalized_email:
+        existing_account = (
+            db.query(AccountModel)
+            .filter(func.lower(AccountModel.email) == normalized_email)
+            .first()
+        )
+    resume_task = crud.get_latest_registration_resume_task(
+        db,
+        email,
+        email_service_id=service.id,
+    ) if email else None
+    resume_result = resume_task.result if resume_task and isinstance(resume_task.result, dict) else {}
+    resume_meta = resume_result.get("metadata") if isinstance(resume_result.get("metadata"), dict) else {}
+
+    local = {
+        "enabled": bool(service.enabled),
+        "has_oauth": has_oauth,
+        "allow_imap_fallback": allow_imap_fallback,
+        "mailbox_ready": bool(has_oauth or allow_imap_fallback),
+        "registered_account_id": getattr(existing_account, "id", None),
+        "registration_status": "registered" if existing_account else "unregistered",
+        "pending_resume": bool(resume_task),
+        "pending_resume_state": str(resume_meta.get("resume_state") or "").strip(),
+        "pending_resume_task_uuid": str(getattr(resume_task, "task_uuid", "") or "").strip(),
+    }
+
+    def _item(
+        suitable: bool,
+        verdict: str,
+        summary: str,
+        probe: Optional[Dict[str, Any]] = None,
+    ) -> OutlookRegistrationCheckItem:
+        return OutlookRegistrationCheckItem(
+            service_id=service.id,
+            email=email,
+            suitable=suitable,
+            verdict=verdict,
+            summary=summary,
+            local=local,
+            probe=probe,
+        )
+
+    if service.service_type != "outlook":
+        return _item(False, "unsupported_service", "仅支持 Outlook 账号快检")
+    if not service.enabled:
+        return _item(False, "service_disabled", "邮箱服务已禁用，不适合发起注册")
+    if not email:
+        return _item(False, "missing_email", "邮箱地址缺失，请先补全配置")
+    if existing_account:
+        return _item(False, "registered_local", "本地账号库已存在该邮箱，不建议再次注册")
+    if resume_task:
+        return _item(False, "pending_resume", "存在未完成注册记录，建议优先走续登/补会话")
+    if not local["mailbox_ready"]:
+        return _item(False, "mailbox_unavailable", "当前为 Graph Only 且缺少 OAuth，无法用于注册收件")
+    if not remote_probe:
+        return _item(True, "local_ready", "本地条件通过，可尝试发起注册")
+
+    probe_logs: List[str] = []
+    probe_payload: Dict[str, Any] = {
+        "ok": False,
+        "page_type": "",
+        "logs": probe_logs,
+    }
+    try:
+        from .registration import get_proxy_for_registration
+
+        proxy_url, _proxy_id = get_proxy_for_registration(db)
+        email_service = EmailServiceFactory.create(
+            EmailServiceType.OUTLOOK,
+            config,
+            name=f"outlook_probe_{service.id}",
+        )
+        engine = RegistrationEngine(
+            email_service=email_service,
+            proxy_url=proxy_url,
+            callback_logger=lambda msg: probe_logs.append(str(msg or "").strip()[:200]),
+        )
+        engine.email_info = {"email": email, "service_id": service.id}
+        engine.email = email
+        engine.inbox_email = email
+
+        did, sen_token = engine._prepare_authorize_flow("快检")
+        if not did:
+            probe_payload["error"] = "device_id_unavailable"
+            return _item(False, "probe_failed", "快检初始化失败，未拿到 Device ID", probe=probe_payload)
+
+        result = engine._submit_signup_form(did, sen_token, record_existing_account=False)
+        probe_payload["ok"] = bool(result.success)
+        probe_payload["page_type"] = str(result.page_type or "").strip()
+        if result.error_message:
+            probe_payload["error"] = str(result.error_message)
+
+        page_type = probe_payload["page_type"]
+        if not result.success:
+            return _item(False, "probe_failed", "OpenAI 探测失败，请稍后重试", probe=probe_payload)
+        if page_type == OPENAI_PAGE_TYPES.get("PASSWORD_REGISTRATION", "create_account_password"):
+            return _item(True, "ready_register", "OpenAI 探测通过，当前邮箱可尝试注册", probe=probe_payload)
+        if page_type == OPENAI_PAGE_TYPES.get("LOGIN_PASSWORD", "login_password"):
+            return _item(False, "registered_remote", "OpenAI 返回登录密码页，疑似该邮箱已存在", probe=probe_payload)
+        if page_type == OPENAI_PAGE_TYPES.get("EMAIL_OTP_VERIFICATION", "email_otp_verification"):
+            return _item(False, "registered_remote_otp", "OpenAI 已进入登录验证码页，该邮箱大概率已注册", probe=probe_payload)
+        return _item(False, "probe_unknown", f"OpenAI 返回未知页面类型: {page_type or '-'}", probe=probe_payload)
+    except Exception as e:
+        probe_payload["error"] = str(e)
+        return _item(False, "probe_exception", f"快检异常: {e}", probe=probe_payload)
 
 
 # ============== API Endpoints ==============
@@ -376,6 +528,70 @@ async def list_email_services(
             total=len(services),
             services=[service_to_response(s) for s in services]
         )
+
+
+@router.post("/outlook/registration-check", response_model=OutlookRegistrationCheckResponse)
+def batch_check_outlook_registration(request: OutlookRegistrationCheckRequest):
+    """批量执行 Outlook 注册快检。"""
+    service_ids = [int(item) for item in request.service_ids if str(item).strip()]
+    if not service_ids:
+        raise HTTPException(status_code=400, detail="请选择至少一个 Outlook 账号")
+    if len(service_ids) > 50:
+        raise HTTPException(status_code=400, detail="单次最多检测 50 个 Outlook 账号")
+
+    results: List[OutlookRegistrationCheckItem] = []
+    with get_db() as db:
+        services = (
+            db.query(EmailServiceModel)
+            .filter(
+                EmailServiceModel.id.in_(service_ids),
+                EmailServiceModel.service_type == "outlook",
+            )
+            .order_by(EmailServiceModel.priority.asc(), EmailServiceModel.id.asc())
+            .all()
+        )
+        service_map = {int(service.id): service for service in services}
+        for service_id in service_ids:
+            service = service_map.get(int(service_id))
+            if not service:
+                results.append(
+                    OutlookRegistrationCheckItem(
+                        service_id=int(service_id),
+                        email="",
+                        suitable=False,
+                        verdict="service_not_found",
+                        summary="Outlook 服务不存在或已删除",
+                        local={},
+                        probe=None,
+                    )
+                )
+                continue
+            results.append(
+                _collect_outlook_registration_check(
+                    db,
+                    service,
+                    remote_probe=bool(request.remote_probe),
+                )
+            )
+
+    return OutlookRegistrationCheckResponse(total=len(results), results=results)
+
+
+@router.post("/{service_id}/registration-check", response_model=OutlookRegistrationCheckItem)
+def check_email_service_registration(service_id: int, remote_probe: bool = Query(True, description="是否执行 OpenAI 实时探测")):
+    """执行单个 Outlook 服务注册快检。"""
+    with get_db() as db:
+        service = (
+            db.query(EmailServiceModel)
+            .filter(
+                EmailServiceModel.id == service_id,
+                EmailServiceModel.service_type == "outlook",
+            )
+            .first()
+        )
+        if not service:
+            raise HTTPException(status_code=404, detail="Outlook 服务不存在")
+        return _collect_outlook_registration_check(db, service, remote_probe=bool(remote_probe))
 
 
 @router.get("/{service_id}", response_model=EmailServiceResponse)

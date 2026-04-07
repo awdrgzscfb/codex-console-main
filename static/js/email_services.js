@@ -7,6 +7,7 @@ let outlookServices = [];
 let customServices = [];  // 合并 moe_mail + temp_mail + cloudmail + duck_mail + freemail + imap_mail
 let selectedOutlook = new Set();
 let selectedCustom = new Set();
+const outlookQuickCheckResults = new Map();
 
 // DOM 元素
 const elements = {
@@ -30,6 +31,7 @@ const elements = {
     // Outlook 列表
     outlookTable: document.getElementById('outlook-accounts-table'),
     selectAllOutlook: document.getElementById('select-all-outlook'),
+    batchCheckOutlookBtn: document.getElementById('batch-check-outlook-btn'),
     batchDeleteOutlookBtn: document.getElementById('batch-delete-outlook-btn'),
 
     // 自定义域名（合并）
@@ -138,6 +140,7 @@ function initEventListeners() {
     });
 
     // Outlook 批量删除
+    elements.batchCheckOutlookBtn?.addEventListener('click', handleBatchQuickCheckOutlook);
     elements.batchDeleteOutlookBtn.addEventListener('click', handleBatchDeleteOutlook);
 
     // 自定义域名全选
@@ -267,12 +270,13 @@ async function loadOutlookServices() {
                 <td>
                     ${getOutlookAuthBadge(service)}
                 </td>
-                <td>${getOutlookRegistrationBadge(service)}</td>
+                <td>${getOutlookRegistrationBadge(service)}${getOutlookQuickCheckBadge(service.id)}</td>
                 <td title="${service.enabled ? '已启用' : '已禁用'}">${service.enabled ? '✅' : '⭕'}</td>
                 <td>${service.priority}</td>
                 <td>${format.date(service.last_used)}</td>
                 <td>
                     <div style="display:flex;gap:4px;align-items:center;white-space:nowrap;">
+                        <button class="btn btn-secondary btn-sm" onclick="quickCheckOutlookService(${service.id})">快检</button>
                         <button class="btn btn-secondary btn-sm" onclick="editOutlookService(${service.id})">编辑</button>
                         <div class="dropdown" style="position:relative;">
                             <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();toggleEmailMoreMenu(this)">更多</button>
@@ -295,6 +299,7 @@ async function loadOutlookServices() {
                 updateBatchButtons();
             });
         });
+        updateBatchButtons();
 
     } catch (error) {
         console.error('加载 Outlook 服务失败:', error);
@@ -318,6 +323,31 @@ function getOutlookRegistrationBadge(service) {
         return '<span class="status-badge pending">未注册</span>';
     }
     return '<span class="status-badge">未知</span>';
+}
+
+function getOutlookQuickCheckBadge(serviceId) {
+    const result = outlookQuickCheckResults.get(serviceId);
+    if (!result) return '';
+
+    let style = 'background-color:#546e7a;color:#fff;';
+    if (result.suitable) {
+        style = 'background-color:#2e7d32;color:#fff;';
+    } else if (String(result.verdict || '').includes('registered')) {
+        style = 'background-color:#ef6c00;color:#fff;';
+    } else if (String(result.verdict || '').includes('probe')) {
+        style = 'background-color:#c62828;color:#fff;';
+    }
+
+    const summary = escapeHtml(result.summary || '-');
+    const label = escapeHtml(result.suitable ? '可注册' : '不可注册');
+    return `<div style="margin-top:6px;" title="${summary}"><span class="status-badge" style="${style}">${label}</span></div>`;
+}
+
+function describeQuickCheckResult(result) {
+    if (!result) return '';
+    const email = String(result.email || '').trim();
+    const summary = String(result.summary || '').trim();
+    return [email, summary].filter(Boolean).join(' ');
 }
 
 function getCustomServiceTypeBadge(subType) {
@@ -658,6 +688,23 @@ async function testService(id) {
     }
 }
 
+async function quickCheckOutlookService(id, { silent = false } = {}) {
+    try {
+        const result = await api.post(`/email-services/${id}/registration-check?remote_probe=true`);
+        outlookQuickCheckResults.set(id, result);
+        loadOutlookServices();
+        if (!silent) {
+            const message = describeQuickCheckResult(result) || '快检完成';
+            if (result.suitable) toast.success(message);
+            else toast.error(message);
+        }
+        return result;
+    } catch (error) {
+        if (!silent) toast.error('快检失败: ' + error.message);
+        throw error;
+    }
+}
+
 // 删除服务
 async function deleteService(id, name) {
     const confirmed = await confirm(`确定要删除 "${name}" 吗？`);
@@ -691,6 +738,25 @@ async function handleBatchDeleteOutlook() {
         loadStats();
     } catch (error) {
         toast.error('删除失败: ' + error.message);
+    }
+}
+
+async function handleBatchQuickCheckOutlook() {
+    if (selectedOutlook.size === 0) return;
+    try {
+        const result = await api.post('/email-services/outlook/registration-check', {
+            service_ids: Array.from(selectedOutlook),
+            remote_probe: true
+        });
+        (result.results || []).forEach(item => {
+            outlookQuickCheckResults.set(item.service_id, item);
+        });
+        loadOutlookServices();
+        const okCount = (result.results || []).filter(item => item.suitable).length;
+        const failCount = (result.results || []).length - okCount;
+        toast.success(`快检完成，可注册 ${okCount} 个，不可注册 ${failCount} 个`);
+    } catch (error) {
+        toast.error('批量快检失败: ' + error.message);
     }
 }
 
@@ -760,6 +826,10 @@ async function handleTestYyds() {
 // 更新批量按钮
 function updateBatchButtons() {
     const count = selectedOutlook.size;
+    if (elements.batchCheckOutlookBtn) {
+        elements.batchCheckOutlookBtn.disabled = count === 0;
+        elements.batchCheckOutlookBtn.textContent = count > 0 ? `快速检测 (${count})` : '快速检测';
+    }
     elements.batchDeleteOutlookBtn.disabled = count === 0;
     elements.batchDeleteOutlookBtn.textContent = count > 0 ? `🗑️ 删除选中 (${count})` : '🗑️ 批量删除';
 }
