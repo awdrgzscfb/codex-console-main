@@ -139,7 +139,8 @@ class OutlookService(BaseEmailService):
             priority_order=self.provider_priority,
         )
 
-        # 閭欢瑙ｆ瀽鍣?        self.email_parser = get_email_parser()
+        # 邮件解析器
+        self.email_parser = get_email_parser()
 
         # 鎻愪緵鑰呭疄渚嬬紦瀛? (email, provider_type) -> OutlookProvider
         self._providers: Dict[tuple, OutlookProvider] = {}
