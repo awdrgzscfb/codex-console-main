@@ -404,6 +404,27 @@ class OutlookService(BaseEmailService):
         self.update_status(False, EmailServiceError(f"等待验证码超时: {email}"))
         return None
 
+    def list_emails(self, **kwargs) -> List[Dict[str, Any]]:
+        """Return configured Outlook accounts in a BaseEmailService-compatible shape."""
+        return [
+            {
+                "id": account.email,
+                "service_id": account.email,
+                "email": {
+                    "address": account.email,
+                    "has_oauth": account.has_oauth(),
+                },
+                "account": account.to_dict(include_sensitive=False),
+            }
+            for account in self.accounts
+        ]
+
+    def delete_email(self, email_id: str) -> bool:
+        """Delete a configured Outlook account by email identifier."""
+        if not email_id:
+            return False
+        return self.remove_account(str(email_id).strip())
+
     def check_health(self) -> bool:
         """Run a lightweight provider connectivity check."""
         if not self.accounts:
