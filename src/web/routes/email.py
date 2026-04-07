@@ -3,6 +3,8 @@
 """
 
 import logging
+import uuid
+from urllib.parse import urlparse
 from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -15,7 +17,12 @@ from ...database.models import EmailService as EmailServiceModel
 from ...database.models import Account as AccountModel
 from ...config.settings import get_settings
 from ...config.constants import OPENAI_PAGE_TYPES
+from ...core.anyauto.oauth_client import OAuthClient
+from ...core.anyauto.register_flow import EmailServiceAdapter
+from ...core.anyauto.utils import decode_jwt_payload
+from ...core.openai.overview import fetch_codex_overview, AccountDeactivatedError
 from ...core.register import RegistrationEngine
+from ...core.timezone_utils import utcnow_naive
 from ...services import EmailServiceFactory, EmailServiceType
 
 logger = logging.getLogger(__name__)
@@ -111,6 +118,23 @@ class OutlookRegistrationCheckResponse(BaseModel):
     results: List[OutlookRegistrationCheckItem]
 
 
+class OutlookOtpLoginRepairResponse(BaseModel):
+    """Outlook 手动 OTP 补登录响应"""
+    service_id: int
+    email: str
+    success: bool
+    message: str
+    account_id: Optional[int] = None
+    created: bool = False
+    updated: bool = False
+    workspace_id: Optional[str] = None
+    subscription_type: Optional[str] = None
+    plan_type: Optional[str] = None
+    overview_refreshed: bool = False
+    session_token_found: bool = False
+    logs: List[str] = []
+
+
 # ============== Helper Functions ==============
 
 # 敏感字段列表，返回响应时需要过滤
@@ -123,6 +147,8 @@ SENSITIVE_FIELDS = {
     'admin_password',
     'custom_auth',
 }
+
+OVERVIEW_EXTRA_DATA_KEY = "codex_overview"
 
 def normalize_email_service_config(service_type: str, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """兼容历史配置字段，避免不同入口写入的键名不一致。"""
@@ -200,6 +226,99 @@ def _as_bool(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+def _normalize_oauth_issuer(auth_url: Optional[str]) -> str:
+    text = str(auth_url or "").strip()
+    if not text:
+        return "https://auth.openai.com"
+    parsed = urlparse(text)
+    if not parsed.scheme or not parsed.netloc:
+        return text.rstrip("/")
+    return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+
+def _extract_session_token_from_cookie_jar(cookie_jar) -> str:
+    if not cookie_jar:
+        return ""
+    try:
+        for cookie in cookie_jar:
+            name = str(getattr(cookie, "name", "") or "").strip()
+            value = str(getattr(cookie, "value", "") or "").strip()
+            if name == "__Secure-next-auth.session-token" and value:
+                return value
+    except Exception:
+        return ""
+    return ""
+
+
+def _dump_cookie_text_from_jar(cookie_jar) -> str:
+    if not cookie_jar:
+        return ""
+    pairs: List[str] = []
+    seen: set[str] = set()
+    try:
+        for cookie in cookie_jar:
+            name = str(getattr(cookie, "name", "") or "").strip()
+            value = str(getattr(cookie, "value", "") or "").strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            pairs.append(f"{name}={value}")
+    except Exception:
+        return ""
+    return "; ".join(pairs)
+
+
+def _extract_openai_identity_from_token(token: Optional[str]) -> Dict[str, str]:
+    payload = decode_jwt_payload(token)
+    if not isinstance(payload, dict):
+        return {"account_id": "", "workspace_id": ""}
+
+    auth_claims = payload.get("https://api.openai.com/auth") or {}
+    account_id = ""
+    workspace_id = ""
+
+    for key in ("chatgpt_account_id", "account_id", "workspace_id"):
+        value = str(auth_claims.get(key) or payload.get(key) or "").strip()
+        if value:
+            account_id = value
+            break
+
+    for key in ("workspace_id", "chatgpt_account_id", "account_id"):
+        value = str(auth_claims.get(key) or payload.get(key) or "").strip()
+        if value:
+            workspace_id = value
+            break
+
+    return {
+        "account_id": account_id,
+        "workspace_id": workspace_id,
+    }
+
+
+def _extract_workspace_id_from_oauth_session(oauth_client: OAuthClient) -> str:
+    try:
+        session_data = oauth_client._decode_oauth_session_cookie()
+    except Exception:
+        session_data = None
+
+    if not isinstance(session_data, dict):
+        return ""
+
+    workspaces = session_data.get("workspaces") or []
+    if workspaces and isinstance(workspaces[0], dict):
+        return str(workspaces[0].get("id") or "").strip()
+    return ""
+
+
+def _plan_to_subscription_type(plan_type: Optional[str]) -> Optional[str]:
+    key = str(plan_type or "").strip().lower()
+    if key.startswith("team"):
+        return "team"
+    if key.startswith("plus") or key.startswith("pro"):
+        return "plus"
+    return None
 
 
 def _collect_outlook_registration_check(
@@ -319,6 +438,200 @@ def _collect_outlook_registration_check(
     except Exception as e:
         probe_payload["error"] = str(e)
         return _item(False, "probe_exception", f"快检异常: {e}", probe=probe_payload)
+
+
+def _run_outlook_otp_login_repair(
+    db,
+    service: EmailServiceModel,
+) -> OutlookOtpLoginRepairResponse:
+    config = normalize_email_service_config(service.service_type, service.config)
+    email = str(config.get("email") or service.name or "").strip().lower()
+    allow_imap_fallback = _as_bool(config.get("allow_imap_fallback"))
+    has_oauth = bool(config.get("client_id") and config.get("refresh_token"))
+
+    if service.service_type != "outlook":
+        raise HTTPException(status_code=400, detail="仅支持 Outlook 账号 OTP 补登录")
+    if not service.enabled:
+        raise HTTPException(status_code=400, detail="当前 Outlook 服务已禁用，请先启用后再试")
+    if not email:
+        raise HTTPException(status_code=400, detail="当前 Outlook 服务缺少邮箱地址")
+    if not has_oauth and not allow_imap_fallback:
+        raise HTTPException(
+            status_code=400,
+            detail="当前邮箱默认仅走 Graph，但缺少 OAuth 且 IMAP 回退未开启，无法自动收取 OTP",
+        )
+
+    from .registration import get_proxy_for_registration
+
+    proxy_url, _proxy_id = get_proxy_for_registration(db)
+    logs: List[str] = []
+
+    def _log(message: str) -> None:
+        text = str(message or "").strip()
+        if text:
+            logs.append(text[:300])
+
+    try:
+        email_service = EmailServiceFactory.create(
+            EmailServiceType.OUTLOOK,
+            config,
+            name=f"outlook_otp_login_repair_{service.id}",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"创建邮箱服务失败: {exc}") from exc
+
+    settings = get_settings()
+    oauth_client = OAuthClient(
+        config={
+            "oauth_issuer": _normalize_oauth_issuer(getattr(settings, "openai_auth_url", None)),
+            "oauth_client_id": str(getattr(settings, "openai_client_id", "") or "app_EMoamEEZ73f0CkXaXp7hrann"),
+            "oauth_redirect_uri": str(getattr(settings, "openai_redirect_uri", "") or "http://localhost:1455/auth/callback"),
+        },
+        proxy=proxy_url,
+        verbose=False,
+        browser_mode="protocol",
+    )
+    oauth_client._log = _log
+
+    adapter = EmailServiceAdapter(email_service, email, email, _log)
+    device_id = str(uuid.uuid4())
+    _log(f"OTP补登启动，邮箱: {email}")
+    _log(f"Device ID: {device_id}")
+
+    tokens = oauth_client.login_passwordless_and_get_tokens(
+        email,
+        device_id,
+        skymail_client=adapter,
+    )
+    if not tokens or not tokens.get("access_token"):
+        raise HTTPException(
+            status_code=400,
+            detail=str(oauth_client.last_error or "OTP 补登录失败，未获取到 access_token"),
+        )
+
+    session = getattr(oauth_client, "session", None)
+    access_token = str(tokens.get("access_token") or "").strip()
+    refresh_token = str(tokens.get("refresh_token") or "").strip()
+    id_token = str(tokens.get("id_token") or "").strip()
+    session_token = _extract_session_token_from_cookie_jar(getattr(session, "cookies", None))
+    cookies_text = _dump_cookie_text_from_jar(getattr(session, "cookies", None))
+
+    identity = _extract_openai_identity_from_token(access_token or id_token)
+    workspace_id = _extract_workspace_id_from_oauth_session(oauth_client) or identity["workspace_id"] or identity["account_id"]
+    remote_account_id = identity["account_id"] or workspace_id
+
+    existing_account = (
+        db.query(AccountModel)
+        .filter(func.lower(AccountModel.email) == email)
+        .first()
+    )
+
+    now = utcnow_naive()
+    extra_data = dict(getattr(existing_account, "extra_data", None) or {})
+    extra_data["otp_login_repair"] = {
+        "service_id": service.id,
+        "email_service": "outlook",
+        "proxy_used": proxy_url,
+        "updated_at": now.isoformat(),
+        "session_token_found": bool(session_token),
+    }
+
+    created = False
+    updated = False
+    if existing_account:
+        existing_account.access_token = access_token
+        existing_account.refresh_token = refresh_token or existing_account.refresh_token
+        existing_account.id_token = id_token or existing_account.id_token
+        existing_account.session_token = session_token or existing_account.session_token
+        existing_account.cookies = cookies_text or existing_account.cookies
+        existing_account.client_id = str(config.get("client_id") or existing_account.client_id or "").strip() or None
+        existing_account.account_id = remote_account_id or existing_account.account_id
+        existing_account.workspace_id = workspace_id or existing_account.workspace_id
+        existing_account.email_service = "outlook"
+        existing_account.email_service_id = str(service.id)
+        existing_account.proxy_used = proxy_url
+        existing_account.status = "active"
+        existing_account.source = existing_account.source or "login"
+        existing_account.last_refresh = now
+        existing_account.extra_data = extra_data
+        db.commit()
+        db.refresh(existing_account)
+        account = existing_account
+        updated = True
+    else:
+        account = crud.create_account(
+            db,
+            email=email,
+            password=None,
+            client_id=str(config.get("client_id") or "").strip() or None,
+            session_token=session_token or None,
+            email_service="outlook",
+            email_service_id=str(service.id),
+            account_id=remote_account_id or None,
+            workspace_id=workspace_id or None,
+            access_token=access_token,
+            refresh_token=refresh_token or None,
+            id_token=id_token or None,
+            cookies=cookies_text or None,
+            proxy_used=proxy_url,
+            extra_data=extra_data,
+            status="active",
+            source="login",
+        )
+        account.last_refresh = now
+        db.commit()
+        db.refresh(account)
+        created = True
+
+    overview_refreshed = False
+    plan_type = None
+    subscription_type = str(getattr(account, "subscription_type", "") or "").strip() or None
+    try:
+        overview = fetch_codex_overview(account, proxy=proxy_url)
+        if isinstance(overview, dict):
+            plan_type = str(overview.get("plan_type") or "").strip() or None
+            detected_sub = _plan_to_subscription_type(plan_type)
+            merged_extra = dict(account.extra_data or {})
+            merged_extra[OVERVIEW_EXTRA_DATA_KEY] = overview
+            account.extra_data = merged_extra
+            if detected_sub:
+                account.subscription_type = detected_sub
+                account.subscription_at = utcnow_naive()
+                subscription_type = detected_sub
+            account.last_refresh = utcnow_naive()
+            db.commit()
+            db.refresh(account)
+            overview_refreshed = True
+    except AccountDeactivatedError as exc:
+        account.status = "banned"
+        merged_extra = dict(account.extra_data or {})
+        merged_extra["otp_login_repair_overview_error"] = str(exc)
+        account.extra_data = merged_extra
+        db.commit()
+        db.refresh(account)
+        _log(f"总览同步命中停用状态: {exc}")
+    except Exception as exc:
+        _log(f"总览同步失败，已保留登录结果: {exc}")
+
+    message = "OTP补登成功，账号信息已同步"
+    if not overview_refreshed:
+        message = "OTP补登成功，但总览同步未完成"
+
+    return OutlookOtpLoginRepairResponse(
+        service_id=service.id,
+        email=email,
+        success=True,
+        message=message,
+        account_id=account.id,
+        created=created,
+        updated=updated,
+        workspace_id=str(account.workspace_id or "").strip() or None,
+        subscription_type=subscription_type,
+        plan_type=plan_type,
+        overview_refreshed=overview_refreshed,
+        session_token_found=bool(session_token),
+        logs=logs[-30:],
+    )
 
 
 # ============== API Endpoints ==============
@@ -592,6 +905,23 @@ def check_email_service_registration(service_id: int, remote_probe: bool = Query
         if not service:
             raise HTTPException(status_code=404, detail="Outlook 服务不存在")
         return _collect_outlook_registration_check(db, service, remote_probe=bool(remote_probe))
+
+
+@router.post("/{service_id}/otp-login-repair", response_model=OutlookOtpLoginRepairResponse)
+def otp_login_repair_outlook_service(service_id: int):
+    """手动触发 Outlook 无密码 OTP 补登录。"""
+    with get_db() as db:
+        service = (
+            db.query(EmailServiceModel)
+            .filter(
+                EmailServiceModel.id == service_id,
+                EmailServiceModel.service_type == "outlook",
+            )
+            .first()
+        )
+        if not service:
+            raise HTTPException(status_code=404, detail="Outlook 服务不存在")
+        return _run_outlook_otp_login_repair(db, service)
 
 
 @router.get("/{service_id}", response_model=EmailServiceResponse)

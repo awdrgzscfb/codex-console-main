@@ -277,6 +277,7 @@ async function loadOutlookServices() {
                 <td>
                     <div style="display:flex;gap:4px;align-items:center;white-space:nowrap;">
                         <button class="btn btn-secondary btn-sm" onclick="quickCheckOutlookService(${service.id})">快检</button>
+                        <button class="btn btn-secondary btn-sm" onclick="otpLoginRepairOutlookService(${service.id}, this)">OTP补登</button>
                         <button class="btn btn-secondary btn-sm" onclick="editOutlookService(${service.id})">编辑</button>
                         <div class="dropdown" style="position:relative;">
                             <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();toggleEmailMoreMenu(this)">更多</button>
@@ -703,6 +704,96 @@ async function quickCheckOutlookService(id, { silent = false } = {}) {
         if (!silent) toast.error('快检失败: ' + error.message);
         throw error;
     }
+}
+
+async function otpLoginRepairOutlookService(id, btn) {
+    const button = btn || null;
+    const originalText = button ? button.textContent : '';
+    try {
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'OTP补登中...';
+        }
+
+        const result = await api.post(`/email-services/${id}/otp-login-repair`);
+        loadOutlookServices();
+        loadStats();
+
+        const parts = [];
+        if (result.email) parts.push(result.email);
+        if (result.account_id) parts.push(`#${result.account_id}`);
+        if (result.plan_type) parts.push(`plan=${result.plan_type}`);
+        parts.push(result.message || 'OTP补登完成');
+        toast.success(parts.join(' '));
+        showOtpLoginRepairLogsModal(result);
+        return result;
+    } catch (error) {
+        toast.error('OTP补登失败: ' + error.message);
+        throw error;
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText || 'OTP补登';
+        }
+    }
+}
+
+function showOtpLoginRepairLogsModal(result) {
+    const logs = Array.isArray(result?.logs) ? result.logs : [];
+    const summaryLines = [
+        result?.email ? `邮箱: ${result.email}` : '',
+        result?.account_id ? `账号ID: ${result.account_id}` : '',
+        result?.workspace_id ? `Workspace: ${result.workspace_id}` : '',
+        result?.plan_type ? `Plan: ${result.plan_type}` : '',
+        `Overview同步: ${result?.overview_refreshed ? '是' : '否'}`,
+        `Session Token: ${result?.session_token_found ? '已拿到' : '未拿到'}`,
+        result?.message ? `结果: ${result.message}` : '',
+    ].filter(Boolean);
+
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:760px;">
+            <div class="modal-header">
+                <h3>OTP补登日志</h3>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom:12px;color:var(--text-secondary);line-height:1.7;">
+                    ${summaryLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}
+                </div>
+                <div style="border:1px solid var(--border-color);border-radius:8px;background:var(--bg-secondary);padding:12px;max-height:420px;overflow:auto;">
+                    <pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-family:Consolas, 'Courier New', monospace;font-size:12px;line-height:1.6;">${escapeHtml(logs.length ? logs.join('\n') : '本次没有返回详细日志')}</pre>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding:12px 20px;border-top:1px solid var(--border-color);display:flex;gap:8px;justify-content:flex-end;">
+                <button class="btn btn-secondary" type="button" data-action="copy">复制日志</button>
+                <button class="btn btn-primary" type="button" data-action="close">关闭</button>
+            </div>
+        </div>
+    `;
+
+    const close = () => modal.remove();
+    modal.querySelector('.modal-close')?.addEventListener('click', close);
+    modal.querySelector('[data-action="close"]')?.addEventListener('click', close);
+    modal.querySelector('[data-action="copy"]')?.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText([
+                ...summaryLines,
+                '',
+                ...logs,
+            ].join('\n'));
+            toast.success('日志已复制');
+        } catch (error) {
+            toast.error('复制日志失败');
+        }
+    });
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            close();
+        }
+    });
+    document.body.appendChild(modal);
 }
 
 // 删除服务
