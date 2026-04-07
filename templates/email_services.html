@@ -1,88 +1,85 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>閭鏈嶅姟 - OpenAI 娉ㄥ唽绯荤粺</title>
+    <title>邮箱服务 - OpenAI 注册系统</title>
     <link rel="stylesheet" href="/static/css/style.css?v={{ static_version }}">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>馃摟</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📧</text></svg>">
 </head>
 <body>
     {% include "partials/site_notice.html" %}
     <div class="container">
-        <!-- 瀵艰埅鏍?-->
         <nav class="navbar">
             <div class="nav-brand">
-                <h1>OpenAI 娉ㄥ唽绯荤粺</h1>
+                <h1>OpenAI 注册系统</h1>
             </div>
             <div class="nav-links">
-                <a href="/" class="nav-link">娉ㄥ唽</a>
-                <a href="/accounts" class="nav-link">璐﹀彿绠＄悊</a>
-                <a href="/email-services" class="nav-link active">閭鏈嶅姟</a>
-                <a href="/payment" class="nav-link">鏀粯</a>
-                <a href="/card-pool" class="nav-link">鍗℃睜</a>
+                <a href="/" class="nav-link">注册</a>
+                <a href="/accounts" class="nav-link">账号管理</a>
+                <a href="/email-services" class="nav-link active">邮箱服务</a>
+                <a href="/payment" class="nav-link">支付</a>
+                <a href="/card-pool" class="nav-link">卡池</a>
                 <a href="/auto-team" class="nav-link">team</a>
-                <a href="/logs" class="nav-link">鍚庡彴鏃ュ織</a>
-                <a href="/settings" class="nav-link">璁剧疆</a>
-                <a href="/logout" class="nav-link">閫€鍑?/a>
+                <a href="/logs" class="nav-link">后台日志</a>
+                <a href="/settings" class="nav-link">设置</a>
+                <a href="/logout" class="nav-link">退出</a>
             </div>
-                        <div class="nav-actions">
-            <a href="/selfcheck" class="selfcheck-toggle" title="绯荤粺鑷">鈿欙笍</a>
-            <button class="theme-toggle" onclick="theme.toggle()" title="鍒囨崲涓婚">馃寵</button>
-        </div>
+            <div class="nav-actions">
+                <a href="/selfcheck" class="selfcheck-toggle" title="系统自检">🩺</a>
+                <button class="theme-toggle" onclick="theme.toggle()" title="切换主题">🌙</button>
+            </div>
         </nav>
 
-        <!-- 涓诲唴瀹瑰尯 -->
         <main class="main-content">
             <div class="page-header">
-                <h2>閭鏈嶅姟绠＄悊</h2>
-                <p class="subtitle">閰嶇疆鍜岀鐞嗘敞鍐屾墍闇€鐨勯偖绠辨湇鍔?/p>
+                <h2>邮箱服务管理</h2>
+                <p class="subtitle">配置和管理注册流程使用的 Outlook、自定义邮箱和临时邮箱服务</p>
             </div>
 
-            <!-- 缁熻鍗＄墖 -->
             <div class="stats-grid">
                 <div class="stat-card info">
                     <div class="stat-value" id="outlook-count">0</div>
-                    <div class="stat-label">Outlook 璐︽埛</div>
+                    <div class="stat-label">Outlook 账户</div>
                 </div>
                 <div class="stat-card success">
                     <div class="stat-value" id="custom-count">0</div>
-                    <div class="stat-label">鑷畾涔夐偖绠?/div>
+                    <div class="stat-label">自定义邮箱</div>
                 </div>
                 <div class="stat-card warning">
-                    <div class="stat-value" id="tempmail-status">鍙敤</div>
-                    <div class="stat-label">涓存椂閭</div>
+                    <div class="stat-value" id="tempmail-status">可用</div>
+                    <div class="stat-label">临时邮箱</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" id="total-enabled">0</div>
-                    <div class="stat-label">宸插惎鐢ㄦ湇鍔?/div>
+                    <div class="stat-label">已启用服务</div>
                 </div>
             </div>
 
-            <!-- Outlook 绠＄悊 -->
             <div class="card">
                 <div class="card-header">
-                    <h3>馃摜 Outlook 鎵归噺瀵煎叆</h3>
-                    <button class="btn btn-ghost btn-sm" id="toggle-outlook-import">灞曞紑</button>
+                    <h3>📥 Outlook 批量导入</h3>
+                    <button class="btn btn-ghost btn-sm" id="toggle-outlook-import">展开</button>
                 </div>
                 <div class="card-body" id="outlook-import-body" style="display: none;">
                     <div class="import-info">
-                        <p><strong>鏀寔鏍煎紡锛?/strong></p>
+                        <p><strong>支持格式：</strong></p>
                         <ul>
-                            <li><code>閭----瀵嗙爜</code> 锛堝瘑鐮佽璇侊級</li>
-                            <li><code>閭----瀵嗙爜----client_id----refresh_token</code> 锛圶OAUTH2 璁よ瘉锛屾帹鑽愶級</li>
+                            <li><code>邮箱----密码</code>，用于密码认证</li>
+                            <li><code>邮箱----密码----client_id----refresh_token</code>，用于 OAuth2 认证</li>
                         </ul>
-                        <p>姣忚涓€涓处鎴凤紝浣跨敤鍥涗釜杩炲瓧绗︼紙----锛夊垎闅斿瓧娈点€備互 # 寮€澶寸殑琛屽皢琚拷鐣ャ€?/p>
+                        <p>每行一个账户，使用四个连字符 <code>----</code> 分隔字段。以 <code>#</code> 开头的行会被忽略。</p>
                     </div>
                     <div class="form-group">
-                        <label for="outlook-import-data">鎵归噺瀵煎叆鏁版嵁</label>
+                        <label for="outlook-import-data">批量导入数据</label>
                         <textarea id="outlook-import-data" rows="8" placeholder="example@outlook.com----password123&#10;test@outlook.com----password456----client_id----refresh_token"></textarea>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label>
                                 <input type="checkbox" id="outlook-import-enabled" checked>
-                                瀵煎叆鍚庡惎鐢?                            </label>
+                                导入后启用
+                            </label>
                         </div>
                         <div class="form-group">
                             <label>
@@ -92,23 +89,22 @@
                             <small style="color: var(--text-muted);">默认仅走 Graph API，勾选后才会在 Graph 失败时回退到 IMAP。</small>
                         </div>
                         <div class="form-group">
-                            <label for="outlook-import-priority">浼樺厛绾?/label>
+                            <label for="outlook-import-priority">优先级</label>
                             <input type="number" id="outlook-import-priority" value="0" min="0">
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button type="button" class="btn btn-primary" id="outlook-import-btn">馃摜 寮€濮嬪鍏?/button>
-                        <button type="button" class="btn btn-secondary" id="clear-import-btn">娓呯┖</button>
+                        <button type="button" class="btn btn-primary" id="outlook-import-btn">📥 开始导入</button>
+                        <button type="button" class="btn btn-secondary" id="clear-import-btn">清空</button>
                     </div>
                     <div id="import-result" style="display: none; margin-top: var(--spacing-md);"></div>
                 </div>
             </div>
 
-            <!-- 鑷畾涔夐偖绠辩鐞嗭紙鍚?MoeMail / TempMail / CloudMail / DuckMail锛?-->
             <div class="card custom-email-services-card">
                 <div class="card-header">
-                    <h3>馃敆 鑷畾涔夐偖绠辨湇鍔?/h3>
-                    <button class="btn btn-primary btn-sm" id="add-custom-btn">鉃?娣诲姞鏈嶅姟</button>
+                    <h3>🔗 自定义邮箱服务</h3>
+                    <button class="btn btn-primary btn-sm" id="add-custom-btn">＋ 添加服务</button>
                 </div>
                 <div class="card-body" style="padding: 0;">
                     <div class="table-container">
@@ -116,14 +112,14 @@
                             <thead>
                                 <tr>
                                     <th style="width: 40px;"><input type="checkbox" id="select-all-custom"></th>
-                                    <th>鍚嶇О</th>
-                                    <th style="width: 90px;">绫诲瀷</th>
-                                    <th style="width: 400px;">鍦板潃</th>
-                                    <th style="width: 120px;">娉ㄥ唽鐘舵€?/th>
-                                    <th style="width: 100px;">鐘舵€?/th>
-                                    <th style="width: 80px;">浼樺厛绾?/th>
-                                    <th style="width: 160px;">鏈€鍚庝娇鐢?/th>
-                                    <th style="width: 180px;">鎿嶄綔</th>
+                                    <th>名称</th>
+                                    <th style="width: 90px;">类型</th>
+                                    <th style="width: 400px;">地址</th>
+                                    <th style="width: 120px;">注册状态</th>
+                                    <th style="width: 100px;">状态</th>
+                                    <th style="width: 80px;">优先级</th>
+                                    <th style="width: 160px;">最后使用</th>
+                                    <th style="width: 180px;">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="custom-services-table">
@@ -141,13 +137,12 @@
                 </div>
             </div>
 
-            <!-- Outlook 璐︽埛鍒楄〃 -->
             <div class="card">
                 <div class="card-header">
-                    <h3>馃摟 Outlook 璐︽埛鍒楄〃</h3>
+                    <h3>📮 Outlook 账户列表</h3>
                     <div style="display:flex;gap:8px;align-items:center;">
                         <button class="btn btn-secondary btn-sm" id="batch-check-outlook-btn" disabled>快速检测</button>
-                        <button class="btn btn-danger btn-sm" id="batch-delete-outlook-btn" disabled>馃棏锔?鎵归噺鍒犻櫎</button>
+                        <button class="btn btn-danger btn-sm" id="batch-delete-outlook-btn" disabled>🗑️ 批量删除</button>
                     </div>
                 </div>
                 <div class="card-body" style="padding: 0;">
@@ -156,13 +151,13 @@
                             <thead>
                                 <tr>
                                     <th style="width: 40px;"><input type="checkbox" id="select-all-outlook"></th>
-                                    <th>閭</th>
-                                    <th style="width: 100px;">璁よ瘉鏂瑰紡</th>
-                                    <th style="width: 120px;">娉ㄥ唽鐘舵€?/th>
-                                    <th style="width: 100px;">鐘舵€?/th>
-                                    <th style="width: 80px;">浼樺厛绾?/th>
-                                    <th style="width: 160px;">鏈€鍚庝娇鐢?/th>
-                                    <th style="width: 140px;">鎿嶄綔</th>
+                                    <th>邮箱</th>
+                                    <th style="width: 100px;">认证方式</th>
+                                    <th style="width: 120px;">注册状态</th>
+                                    <th style="width: 100px;">状态</th>
+                                    <th style="width: 80px;">优先级</th>
+                                    <th style="width: 160px;">最后使用</th>
+                                    <th style="width: 140px;">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="outlook-accounts-table">
@@ -180,49 +175,50 @@
                 </div>
             </div>
 
-            <!-- 涓存椂閭閰嶇疆 -->
             <div class="card">
                 <div class="card-header">
-                    <h3>馃寪 涓存椂閭閰嶇疆</h3>
+                    <h3>🧪 临时邮箱配置</h3>
                 </div>
                 <div class="card-body">
                     <form id="tempmail-form">
                         <div class="form-group">
-                            <label for="tempmail-api">Tempmail.lol API 鍦板潃</label>
+                            <label for="tempmail-api">Tempmail.lol API 地址</label>
                             <input type="text" id="tempmail-api" name="api_url" placeholder="https://tempmail.lol/api">
                         </div>
                         <div class="form-group">
                             <label>
                                 <input type="checkbox" id="tempmail-enabled" checked>
-                                鍚敤涓存椂閭
+                                启用临时邮箱
                             </label>
                         </div>
                         <div class="form-actions" style="margin-bottom: var(--spacing-lg);">
-                            <button type="button" class="btn btn-secondary" id="test-tempmail-btn">馃攲 娴嬭瘯 Tempmail.lol</button>
+                            <button type="button" class="btn btn-secondary" id="test-tempmail-btn">🔎 测试 Tempmail.lol</button>
                         </div>
+
                         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: var(--spacing-lg) 0;">
+
                         <div class="form-group">
-                            <label for="yyds-api">YYDS Mail API 鍦板潃</label>
+                            <label for="yyds-api">YYDS Mail API 地址</label>
                             <input type="text" id="yyds-api" name="yyds_api_url" placeholder="https://maliapi.215.im/v1">
                         </div>
                         <div class="form-group">
                             <label for="yyds-api-key">YYDS Mail API Key</label>
-                            <input type="password" id="yyds-api-key" name="yyds_api_key" placeholder="鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?>
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸凡淇濆瓨鐨?API Key 涓嶅彉</small>
+                            <input type="password" id="yyds-api-key" name="yyds_api_key" placeholder="留空则保持原值不变">
+                            <small style="color: var(--text-muted);">已保存的 API Key 不会直接回显，留空表示不修改。</small>
                         </div>
                         <div class="form-group">
-                            <label for="yyds-default-domain">YYDS 榛樿鍩熷悕锛堝彲閫夛級</label>
+                            <label for="yyds-default-domain">YYDS 默认域名（可选）</label>
                             <input type="text" id="yyds-default-domain" name="yyds_default_domain" placeholder="public.example.com">
                         </div>
                         <div class="form-group">
                             <label>
                                 <input type="checkbox" id="yyds-enabled">
-                                鍚敤 YYDS Mail
+                                启用 YYDS Mail
                             </label>
                         </div>
                         <div class="form-actions">
-                            <button type="submit" class="btn btn-primary">馃捑 淇濆瓨璁剧疆</button>
-                            <button type="button" class="btn btn-secondary" id="test-yyds-btn">馃攲 娴嬭瘯 YYDS Mail</button>
+                            <button type="submit" class="btn btn-primary">💾 保存设置</button>
+                            <button type="button" class="btn btn-secondary" id="test-yyds-btn">🔎 测试 YYDS Mail</button>
                         </div>
                     </form>
                 </div>
@@ -230,69 +226,68 @@
         </main>
     </div>
 
-    <!-- 娣诲姞鑷畾涔夐偖绠辨湇鍔℃ā鎬佹锛堝惈绫诲瀷閫夋嫨锛?-->
     <div class="modal" id="add-custom-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>鉃?娣诲姞鑷畾涔夐偖绠辨湇鍔?/h3>
+                <h3>＋ 添加自定义邮箱服务</h3>
                 <button class="modal-close" id="close-custom-modal">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="add-custom-form">
                     <div class="form-group">
-                        <label for="custom-name">鏈嶅姟鍚嶇О</label>
-                        <input type="text" id="custom-name" name="name" required placeholder="渚嬪锛氭垜鐨勫煙鍚嶉偖绠?>
+                        <label for="custom-name">服务名称</label>
+                        <input type="text" id="custom-name" name="name" required placeholder="例如：我的域名邮箱">
                     </div>
                     <div class="form-group">
-                        <label for="custom-sub-type">鏈嶅姟绫诲瀷</label>
+                        <label for="custom-sub-type">服务类型</label>
                         <select id="custom-sub-type" name="sub_type">
-                            <option value="moemail">MoeMail锛堣嚜瀹氫箟鍩熷悕 API锛?/option>
-                            <option value="tempmail_builtin">Tempmail.lol锛堝畼鏂规笭閬擄級</option>
-                            <option value="yyds_mail">YYDS Mail锛堝畼鏂规笭閬擄級</option>
-                            <option value="tempmail">TempMail锛堣嚜閮ㄧ讲 Cloudflare Worker锛?/option>
-                            <option value="cloudmail">CloudMail锛堣嚜閮ㄧ讲 Cloudflare Worker锛?/option>
-                            <option value="duckmail">DuckMail锛圖uckMail API锛?/option>
-                            <option value="luckmail">LuckMail锛堟帴鐮佸钩鍙帮級</option>
-                            <option value="freemail">Freemail锛堣嚜閮ㄧ讲 Cloudflare Worker锛?/option>
-                            <option value="imap">鏍囧噯 IMAP锛圙mail/QQ/163绛夛級</option>
+                            <option value="moemail">MoeMail（自定义域名 API）</option>
+                            <option value="tempmail_builtin">Tempmail.lol（官方渠道）</option>
+                            <option value="yyds_mail">YYDS Mail（官方渠道）</option>
+                            <option value="tempmail">TempMail（自部署 Cloudflare Worker）</option>
+                            <option value="cloudmail">CloudMail（自部署 Cloudflare Worker）</option>
+                            <option value="duckmail">DuckMail（DuckMail API）</option>
+                            <option value="luckmail">LuckMail（接码平台）</option>
+                            <option value="freemail">Freemail（自部署 Cloudflare Worker）</option>
+                            <option value="imap">标准 IMAP（Gmail/QQ/163 等）</option>
                         </select>
                     </div>
-                    <!-- MoeMail 瀛楁 -->
+
                     <div id="add-moemail-fields">
                         <div class="form-group">
-                            <label for="custom-api-url">API 鍦板潃</label>
+                            <label for="custom-api-url">API 地址</label>
                             <input type="text" id="custom-api-url" name="api_url" placeholder="https://api.example.com">
                         </div>
                         <div class="form-group">
-                            <label for="custom-api-key">API 瀵嗛挜 (鍙€?</label>
+                            <label for="custom-api-key">API Key（可选）</label>
                             <input type="text" id="custom-api-key" name="api_key" placeholder="API Key">
                         </div>
                         <div class="form-group">
-                            <label for="custom-domain">閭鍩熷悕</label>
+                            <label for="custom-domain">邮箱域名</label>
                             <input type="text" id="custom-domain" name="domain" placeholder="example.com">
                         </div>
                     </div>
-                    <!-- Tempmail.lol 瀛楁 -->
+
                     <div id="add-tempmail-builtin-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="custom-tpo-base-url">API 鍦板潃</label>
+                            <label for="custom-tpo-base-url">API 地址</label>
                             <input type="text" id="custom-tpo-base-url" name="tpo_base_url" placeholder="https://api.tempmail.lol/v2">
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="custom-tpo-timeout">瓒呮椂鏃堕棿锛堢锛?/label>
+                                <label for="custom-tpo-timeout">超时时间（秒）</label>
                                 <input type="number" id="custom-tpo-timeout" name="tpo_timeout" min="1" value="30">
                             </div>
                             <div class="form-group">
-                                <label for="custom-tpo-max-retries">鏈€澶ч噸璇曟鏁?/label>
+                                <label for="custom-tpo-max-retries">最大重试次数</label>
                                 <input type="number" id="custom-tpo-max-retries" name="tpo_max_retries" min="0" value="3">
                             </div>
                         </div>
                     </div>
-                    <!-- YYDS Mail 瀛楁 -->
+
                     <div id="add-yyds-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="custom-yyds-base-url">API 鍦板潃</label>
+                            <label for="custom-yyds-base-url">API 地址</label>
                             <input type="text" id="custom-yyds-base-url" name="yyds_base_url" placeholder="https://maliapi.215.im/v1">
                         </div>
                         <div class="form-group">
@@ -300,58 +295,58 @@
                             <input type="text" id="custom-yyds-api-key" name="yyds_api_key" placeholder="YYDS Mail API Key">
                         </div>
                         <div class="form-group">
-                            <label for="custom-yyds-default-domain">榛樿鍩熷悕锛堝彲閫夛級</label>
+                            <label for="custom-yyds-default-domain">默认域名（可选）</label>
                             <input type="text" id="custom-yyds-default-domain" name="yyds_default_domain" placeholder="public.example.com">
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="custom-yyds-timeout">瓒呮椂鏃堕棿锛堢锛?/label>
+                                <label for="custom-yyds-timeout">超时时间（秒）</label>
                                 <input type="number" id="custom-yyds-timeout" name="yyds_timeout" min="1" value="30">
                             </div>
                             <div class="form-group">
-                                <label for="custom-yyds-max-retries">鏈€澶ч噸璇曟鏁?/label>
+                                <label for="custom-yyds-max-retries">最大重试次数</label>
                                 <input type="number" id="custom-yyds-max-retries" name="yyds_max_retries" min="0" value="3">
                             </div>
                         </div>
                     </div>
-                    <!-- TempMail 瀛楁 -->
+
                     <div id="add-tempmail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="custom-tm-base-url">Worker 鍦板潃</label>
+                            <label for="custom-tm-base-url">Worker 地址</label>
                             <input type="text" id="custom-tm-base-url" name="tm_base_url" placeholder="https://mail.example.com">
                         </div>
                         <div class="form-group">
-                            <label for="custom-tm-admin-password">Admin 瀵嗙爜</label>
-                            <input type="password" id="custom-tm-admin-password" name="tm_admin_password" placeholder="x-admin-auth 瀵嗙爜">
+                            <label for="custom-tm-admin-password">Admin 密码</label>
+                            <input type="password" id="custom-tm-admin-password" name="tm_admin_password" placeholder="x-admin-auth 密码">
                         </div>
                         <div class="form-group">
-                            <label for="custom-tm-domain">閭鍩熷悕</label>
+                            <label for="custom-tm-domain">邮箱域名</label>
                             <input type="text" id="custom-tm-domain" name="tm_domain" placeholder="example.com">
                         </div>
                     </div>
-                    <!-- DuckMail 瀛楁 -->
+
                     <div id="add-duckmail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="custom-dm-base-url">API 鍦板潃</label>
+                            <label for="custom-dm-base-url">API 地址</label>
                             <input type="text" id="custom-dm-base-url" name="dm_base_url" placeholder="https://api.duckmail.sbs">
                         </div>
                         <div class="form-group">
-                            <label for="custom-dm-api-key">API Key锛堝彲閫夛級</label>
+                            <label for="custom-dm-api-key">API Key（可选）</label>
                             <input type="text" id="custom-dm-api-key" name="dm_api_key" placeholder="dk_xxx">
                         </div>
                         <div class="form-group">
-                            <label for="custom-dm-domain">榛樿鍩熷悕</label>
+                            <label for="custom-dm-domain">默认域名</label>
                             <input type="text" id="custom-dm-domain" name="dm_domain" placeholder="example.com">
                         </div>
                         <div class="form-group">
-                            <label for="custom-dm-password-length">闅忔満瀵嗙爜闀垮害</label>
+                            <label for="custom-dm-password-length">随机密码长度</label>
                             <input type="number" id="custom-dm-password-length" name="dm_password_length" min="6" max="64" value="12">
                         </div>
                     </div>
-                    <!-- LuckMail 瀛楁 -->
+
                     <div id="add-luckmail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="custom-lm-base-url">骞冲彴鍦板潃</label>
+                            <label for="custom-lm-base-url">平台地址</label>
                             <input type="text" id="custom-lm-base-url" name="lm_base_url" placeholder="https://mails.luckyous.com/">
                         </div>
                         <div class="form-group">
@@ -359,114 +354,113 @@
                             <input type="text" id="custom-lm-api-key" name="lm_api_key" placeholder="LuckMail API Key">
                         </div>
                         <div class="form-group">
-                            <label for="custom-lm-project-code">椤圭洰缂栫爜</label>
+                            <label for="custom-lm-project-code">项目编码</label>
                             <input type="text" id="custom-lm-project-code" name="lm_project_code" value="openai" placeholder="openai">
                         </div>
                         <div class="form-group">
-                            <label for="custom-lm-email-type">閭绫诲瀷</label>
+                            <label for="custom-lm-email-type">邮箱类型</label>
                             <input type="text" id="custom-lm-email-type" name="lm_email_type" value="ms_graph" placeholder="ms_graph">
                         </div>
                         <div class="form-group">
-                            <label for="custom-lm-preferred-domain">浼樺厛鍩熷悕 (鍙€?</label>
+                            <label for="custom-lm-preferred-domain">优先域名（可选）</label>
                             <input type="text" id="custom-lm-preferred-domain" name="lm_preferred_domain" placeholder="outlook.com">
                         </div>
                     </div>
-                    <!-- Freemail 瀛楁 -->
+
                     <div id="add-freemail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="custom-fm-base-url">Worker 鍦板潃</label>
+                            <label for="custom-fm-base-url">Worker 地址</label>
                             <input type="text" id="custom-fm-base-url" name="fm_base_url" placeholder="https://freemail.example.com">
                         </div>
                         <div class="form-group">
                             <label for="custom-fm-admin-token">Admin Token</label>
-                            <input type="password" id="custom-fm-admin-token" name="fm_admin_token" placeholder="JWT_TOKEN 鍊?>
+                            <input type="password" id="custom-fm-admin-token" name="fm_admin_token" placeholder="JWT_TOKEN 值">
                         </div>
                         <div class="form-group">
-                            <label for="custom-fm-domain">閭鍩熷悕 (鍙€?</label>
+                            <label for="custom-fm-domain">邮箱域名（可选）</label>
                             <input type="text" id="custom-fm-domain" name="fm_domain" placeholder="example.com">
                         </div>
                     </div>
-                    <!-- IMAP 瀛楁 -->
+
                     <div id="add-imap-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="custom-imap-host">IMAP 鏈嶅姟鍣?/label>
+                            <label for="custom-imap-host">IMAP 服务器</label>
                             <input type="text" id="custom-imap-host" name="imap_host" placeholder="imap.gmail.com / imap.qq.com / imap.163.com">
-                            <small style="color: var(--text-muted);">Gmail: imap.gmail.com | QQ: imap.qq.com | 163: imap.163.com</small>
+                            <small style="color: var(--text-muted);">Gmail: imap.gmail.com，QQ: imap.qq.com，163: imap.163.com</small>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="custom-imap-port">绔彛</label>
+                                <label for="custom-imap-port">端口</label>
                                 <input type="number" id="custom-imap-port" name="imap_port" value="993" min="1" max="65535">
                             </div>
                             <div class="form-group">
-                                <label for="custom-imap-use-ssl">鍔犲瘑鏂瑰紡</label>
+                                <label for="custom-imap-use-ssl">加密方式</label>
                                 <select id="custom-imap-use-ssl" name="imap_use_ssl">
-                                    <option value="true">SSL锛堢鍙?993锛?/option>
-                                    <option value="false">STARTTLS锛堢鍙?143锛?/option>
+                                    <option value="true">SSL（通常 993）</option>
+                                    <option value="false">STARTTLS（通常 143）</option>
                                 </select>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="custom-imap-email">閭鍦板潃</label>
+                            <label for="custom-imap-email">邮箱地址</label>
                             <input type="email" id="custom-imap-email" name="imap_email" placeholder="your@gmail.com">
                         </div>
                         <div class="form-group">
-                            <label for="custom-imap-password">瀵嗙爜 / 鎺堟潈鐮?/label>
-                            <input type="password" id="custom-imap-password" name="imap_password" placeholder="Gmail 闇€浣跨敤 App Password锛孮Q/163 闇€浣跨敤鎺堟潈鐮?>
+                            <label for="custom-imap-password">密码 / 授权码</label>
+                            <input type="password" id="custom-imap-password" name="imap_password" placeholder="Gmail 建议使用 App Password，QQ/163 使用授权码">
                         </div>
                     </div>
+
                     <div id="add-cloudmail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="custom-cm-base-url">API 鍦板潃</label>
+                            <label for="custom-cm-base-url">API 地址</label>
                             <input type="text" id="custom-cm-base-url" name="cm_base_url" placeholder="https://mail.example.com">
                         </div>
                         <div class="form-group">
-                            <label for="custom-cm-admin-email">绠＄悊鍛橀偖绠?/label>
+                            <label for="custom-cm-admin-email">管理员邮箱</label>
                             <input type="email" id="custom-cm-admin-email" name="cm_admin_email" placeholder="admin@example.com">
                         </div>
                         <div class="form-group">
-                            <label for="custom-cm-admin-password">绠＄悊鍛樺瘑鐮?/label>
-                            <input type="password" id="custom-cm-admin-password" name="cm_admin_password" placeholder="绠＄悊鍛橀偖绠卞瘑鐮?>
+                            <label for="custom-cm-admin-password">管理员密码</label>
+                            <input type="password" id="custom-cm-admin-password" name="cm_admin_password" placeholder="管理员邮箱密码">
                         </div>
                         <div class="form-group">
-                            <label for="custom-cm-domain">閭鍩熷悕</label>
-                            <input type="text" id="custom-cm-domain" name="cm_domain" placeholder="example.com 鎴?domain1.com,domain2.com">
-                            <small style="color: var(--text-muted);">鏀寔澶氫釜鍩熷悕锛岀敤鑻辨枃閫楀彿鍒嗛殧</small>
+                            <label for="custom-cm-domain">邮箱域名</label>
+                            <input type="text" id="custom-cm-domain" name="cm_domain" placeholder="example.com 或 domain1.com,domain2.com">
+                            <small style="color: var(--text-muted);">支持多个域名，使用英文逗号分隔。</small>
                         </div>
                         <div class="form-group">
-                            <label for="custom-cm-subdomain">瀛愬煙锛堝彲閫夛級</label>
+                            <label for="custom-cm-subdomain">子域（可选）</label>
                             <input type="text" id="custom-cm-subdomain" name="cm_subdomain" placeholder="test">
-                            <small style="color: var(--text-muted);">渚嬪濉啓 "test"锛岀敓鎴愮殑閭涓?xxx@test.example.com</small>
+                            <small style="color: var(--text-muted);">例如填写 <code>test</code>，将生成 <code>xxx@test.example.com</code>。</small>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="custom-priority">浼樺厛绾?/label>
+                            <label for="custom-priority">优先级</label>
                             <input type="number" id="custom-priority" name="priority" value="0" min="0">
                         </div>
                         <div class="form-group">
                             <label>
                                 <input type="checkbox" id="custom-enabled" name="enabled" checked>
-                                鍚敤鏈嶅姟
+                                启用服务
                             </label>
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">娣诲姞</button>
-                        <button type="button" class="btn btn-secondary" id="cancel-add-custom">鍙栨秷</button>
+                        <button type="submit" class="btn btn-primary">添加</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-add-custom">取消</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-
-    <!-- 缂栬緫鑷畾涔夐偖绠辨湇鍔℃ā鎬佹锛堝惈绫诲瀷閫夋嫨锛?-->
     <div class="modal" id="edit-custom-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>鉁忥笍 缂栬緫鑷畾涔夐偖绠辨湇鍔?/h3>
+                <h3>✏️ 编辑自定义邮箱服务</h3>
                 <button class="modal-close" id="close-edit-custom-modal">&times;</button>
             </div>
             <div class="modal-body">
@@ -474,251 +468,251 @@
                     <input type="hidden" id="edit-custom-id" name="id">
                     <input type="hidden" id="edit-custom-sub-type-hidden" name="sub_type">
                     <div class="form-group">
-                        <label for="edit-custom-name">鏈嶅姟鍚嶇О</label>
-                        <input type="text" id="edit-custom-name" name="name" required placeholder="渚嬪锛氭垜鐨勫煙鍚嶉偖绠?>
+                        <label for="edit-custom-name">服务名称</label>
+                        <input type="text" id="edit-custom-name" name="name" required placeholder="例如：我的域名邮箱">
                     </div>
                     <div class="form-group">
-                        <label>鏈嶅姟绫诲瀷</label>
+                        <label>服务类型</label>
                         <div id="edit-custom-type-badge" style="padding: 6px 0; color: var(--text-muted); font-size: 0.875rem;"></div>
                     </div>
-                    <!-- MoeMail 瀛楁 -->
+
                     <div id="edit-moemail-fields">
                         <div class="form-group">
-                            <label for="edit-custom-api-url">API 鍦板潃</label>
+                            <label for="edit-custom-api-url">API 地址</label>
                             <input type="text" id="edit-custom-api-url" name="api_url" placeholder="https://api.example.com">
                         </div>
                         <div class="form-group">
-                            <label for="edit-custom-api-key">API 瀵嗛挜</label>
+                            <label for="edit-custom-api-key">API Key</label>
                             <input type="text" id="edit-custom-api-key" name="api_key" placeholder="API Key">
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                            <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                         </div>
                         <div class="form-group">
-                            <label for="edit-custom-domain">閭鍩熷悕</label>
+                            <label for="edit-custom-domain">邮箱域名</label>
                             <input type="text" id="edit-custom-domain" name="domain" placeholder="example.com">
                         </div>
                     </div>
-                    <!-- Tempmail.lol 瀛楁 -->
+
                     <div id="edit-tempmail-builtin-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="edit-tpo-base-url">API 鍦板潃</label>
+                            <label for="edit-tpo-base-url">API 地址</label>
                             <input type="text" id="edit-tpo-base-url" name="tpo_base_url" placeholder="https://api.tempmail.lol/v2">
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="edit-tpo-timeout">瓒呮椂鏃堕棿锛堢锛?/label>
+                                <label for="edit-tpo-timeout">超时时间（秒）</label>
                                 <input type="number" id="edit-tpo-timeout" name="tpo_timeout" min="1" value="30">
                             </div>
                             <div class="form-group">
-                                <label for="edit-tpo-max-retries">鏈€澶ч噸璇曟鏁?/label>
+                                <label for="edit-tpo-max-retries">最大重试次数</label>
                                 <input type="number" id="edit-tpo-max-retries" name="tpo_max_retries" min="0" value="3">
                             </div>
                         </div>
                     </div>
-                    <!-- YYDS Mail 瀛楁 -->
+
                     <div id="edit-yyds-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="edit-yyds-base-url">API 鍦板潃</label>
+                            <label for="edit-yyds-base-url">API 地址</label>
                             <input type="text" id="edit-yyds-base-url" name="yyds_base_url" placeholder="https://maliapi.215.im/v1">
                         </div>
                         <div class="form-group">
                             <label for="edit-yyds-api-key">API Key</label>
-                            <input type="text" id="edit-yyds-api-key" name="yyds_api_key" placeholder="鐣欑┖鍒欎笉淇敼">
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                            <input type="text" id="edit-yyds-api-key" name="yyds_api_key" placeholder="留空则保持原值不变">
+                            <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                         </div>
                         <div class="form-group">
-                            <label for="edit-yyds-default-domain">榛樿鍩熷悕锛堝彲閫夛級</label>
+                            <label for="edit-yyds-default-domain">默认域名（可选）</label>
                             <input type="text" id="edit-yyds-default-domain" name="yyds_default_domain" placeholder="public.example.com">
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="edit-yyds-timeout">瓒呮椂鏃堕棿锛堢锛?/label>
+                                <label for="edit-yyds-timeout">超时时间（秒）</label>
                                 <input type="number" id="edit-yyds-timeout" name="yyds_timeout" min="1" value="30">
                             </div>
                             <div class="form-group">
-                                <label for="edit-yyds-max-retries">鏈€澶ч噸璇曟鏁?/label>
+                                <label for="edit-yyds-max-retries">最大重试次数</label>
                                 <input type="number" id="edit-yyds-max-retries" name="yyds_max_retries" min="0" value="3">
                             </div>
                         </div>
                     </div>
-                    <!-- TempMail 瀛楁 -->
+
                     <div id="edit-tempmail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="edit-tm-base-url">Worker 鍦板潃</label>
+                            <label for="edit-tm-base-url">Worker 地址</label>
                             <input type="text" id="edit-tm-base-url" name="tm_base_url" placeholder="https://mail.example.com">
                         </div>
                         <div class="form-group">
-                            <label for="edit-tm-admin-password">Admin 瀵嗙爜</label>
-                            <input type="password" id="edit-tm-admin-password" name="tm_admin_password" placeholder="鐣欑┖鍒欎笉淇敼">
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                            <label for="edit-tm-admin-password">Admin 密码</label>
+                            <input type="password" id="edit-tm-admin-password" name="tm_admin_password" placeholder="留空则保持原值不变">
+                            <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                         </div>
                         <div class="form-group">
-                            <label for="edit-tm-domain">閭鍩熷悕</label>
+                            <label for="edit-tm-domain">邮箱域名</label>
                             <input type="text" id="edit-tm-domain" name="tm_domain" placeholder="example.com">
                         </div>
                     </div>
-                    <!-- DuckMail 瀛楁 -->
+
                     <div id="edit-duckmail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="edit-dm-base-url">API 鍦板潃</label>
+                            <label for="edit-dm-base-url">API 地址</label>
                             <input type="text" id="edit-dm-base-url" name="dm_base_url" placeholder="https://api.duckmail.sbs">
                         </div>
                         <div class="form-group">
                             <label for="edit-dm-api-key">API Key</label>
-                            <input type="text" id="edit-dm-api-key" name="dm_api_key" placeholder="鐣欑┖鍒欎笉淇敼">
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                            <input type="text" id="edit-dm-api-key" name="dm_api_key" placeholder="留空则保持原值不变">
+                            <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                         </div>
                         <div class="form-group">
-                            <label for="edit-dm-domain">榛樿鍩熷悕</label>
+                            <label for="edit-dm-domain">默认域名</label>
                             <input type="text" id="edit-dm-domain" name="dm_domain" placeholder="example.com">
                         </div>
                         <div class="form-group">
-                            <label for="edit-dm-password-length">闅忔満瀵嗙爜闀垮害</label>
+                            <label for="edit-dm-password-length">随机密码长度</label>
                             <input type="number" id="edit-dm-password-length" name="dm_password_length" min="6" max="64" value="12">
                         </div>
                     </div>
-                    <!-- LuckMail 瀛楁 -->
+
                     <div id="edit-luckmail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="edit-lm-base-url">骞冲彴鍦板潃</label>
+                            <label for="edit-lm-base-url">平台地址</label>
                             <input type="text" id="edit-lm-base-url" name="lm_base_url" placeholder="https://mails.luckyous.com/">
                         </div>
                         <div class="form-group">
                             <label for="edit-lm-api-key">API Key</label>
-                            <input type="text" id="edit-lm-api-key" name="lm_api_key" placeholder="鐣欑┖鍒欎笉淇敼">
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                            <input type="text" id="edit-lm-api-key" name="lm_api_key" placeholder="留空则保持原值不变">
+                            <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                         </div>
                         <div class="form-group">
-                            <label for="edit-lm-project-code">椤圭洰缂栫爜</label>
+                            <label for="edit-lm-project-code">项目编码</label>
                             <input type="text" id="edit-lm-project-code" name="lm_project_code" placeholder="openai">
                         </div>
                         <div class="form-group">
-                            <label for="edit-lm-email-type">閭绫诲瀷</label>
+                            <label for="edit-lm-email-type">邮箱类型</label>
                             <input type="text" id="edit-lm-email-type" name="lm_email_type" placeholder="ms_graph">
                         </div>
                         <div class="form-group">
-                            <label for="edit-lm-preferred-domain">浼樺厛鍩熷悕 (鍙€?</label>
+                            <label for="edit-lm-preferred-domain">优先域名（可选）</label>
                             <input type="text" id="edit-lm-preferred-domain" name="lm_preferred_domain" placeholder="outlook.com">
                         </div>
                     </div>
-                    <!-- Freemail 瀛楁 -->
+
                     <div id="edit-freemail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="edit-fm-base-url">Worker 鍦板潃</label>
+                            <label for="edit-fm-base-url">Worker 地址</label>
                             <input type="text" id="edit-fm-base-url" name="fm_base_url" placeholder="https://freemail.example.com">
                         </div>
                         <div class="form-group">
                             <label for="edit-fm-admin-token">Admin Token</label>
-                            <input type="password" id="edit-fm-admin-token" name="fm_admin_token" placeholder="鐣欑┖鍒欎笉淇敼">
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                            <input type="password" id="edit-fm-admin-token" name="fm_admin_token" placeholder="留空则保持原值不变">
+                            <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                         </div>
                         <div class="form-group">
-                            <label for="edit-fm-domain">閭鍩熷悕 (鍙€?</label>
+                            <label for="edit-fm-domain">邮箱域名（可选）</label>
                             <input type="text" id="edit-fm-domain" name="fm_domain" placeholder="example.com">
                         </div>
                     </div>
-                    <!-- IMAP 瀛楁 -->
+
                     <div id="edit-imap-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="edit-imap-host">IMAP 鏈嶅姟鍣?/label>
+                            <label for="edit-imap-host">IMAP 服务器</label>
                             <input type="text" id="edit-imap-host" name="imap_host" placeholder="imap.gmail.com">
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="edit-imap-port">绔彛</label>
+                                <label for="edit-imap-port">端口</label>
                                 <input type="number" id="edit-imap-port" name="imap_port" value="993" min="1" max="65535">
                             </div>
                             <div class="form-group">
-                                <label for="edit-imap-use-ssl">鍔犲瘑鏂瑰紡</label>
+                                <label for="edit-imap-use-ssl">加密方式</label>
                                 <select id="edit-imap-use-ssl" name="imap_use_ssl">
-                                    <option value="true">SSL锛堢鍙?993锛?/option>
-                                    <option value="false">STARTTLS锛堢鍙?143锛?/option>
+                                    <option value="true">SSL（通常 993）</option>
+                                    <option value="false">STARTTLS（通常 143）</option>
                                 </select>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="edit-imap-email">閭鍦板潃</label>
+                            <label for="edit-imap-email">邮箱地址</label>
                             <input type="email" id="edit-imap-email" name="imap_email" placeholder="your@gmail.com">
                         </div>
                         <div class="form-group">
-                            <label for="edit-imap-password">瀵嗙爜 / 鎺堟潈鐮?/label>
-                            <input type="password" id="edit-imap-password" name="imap_password" placeholder="鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?>
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                            <label for="edit-imap-password">密码 / 授权码</label>
+                            <input type="password" id="edit-imap-password" name="imap_password" placeholder="留空则保持原值不变">
+                            <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                         </div>
                     </div>
-                    <!-- CloudMail 瀛楁 -->
+
                     <div id="edit-cloudmail-fields" style="display:none;">
                         <div class="form-group">
-                            <label for="edit-cm-base-url">API 鍦板潃</label>
+                            <label for="edit-cm-base-url">API 地址</label>
                             <input type="text" id="edit-cm-base-url" name="cm_base_url" placeholder="https://mail.example.com">
                         </div>
                         <div class="form-group">
-                            <label for="edit-cm-admin-email">绠＄悊鍛橀偖绠?/label>
+                            <label for="edit-cm-admin-email">管理员邮箱</label>
                             <input type="email" id="edit-cm-admin-email" name="cm_admin_email" placeholder="admin@example.com">
                         </div>
                         <div class="form-group">
-                            <label for="edit-cm-admin-password">绠＄悊鍛樺瘑鐮?/label>
-                            <input type="password" id="edit-cm-admin-password" name="cm_admin_password" placeholder="鐣欑┖鍒欎笉淇敼">
-                            <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                            <label for="edit-cm-admin-password">管理员密码</label>
+                            <input type="password" id="edit-cm-admin-password" name="cm_admin_password" placeholder="留空则保持原值不变">
+                            <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                         </div>
                         <div class="form-group">
-                            <label for="edit-cm-domain">閭鍩熷悕</label>
+                            <label for="edit-cm-domain">邮箱域名</label>
                             <input type="text" id="edit-cm-domain" name="cm_domain" placeholder="example.com">
-                            <small style="color: var(--text-muted);">鏀寔澶氫釜鍩熷悕锛岀敤鑻辨枃閫楀彿鍒嗛殧</small>
+                            <small style="color: var(--text-muted);">支持多个域名，使用英文逗号分隔。</small>
                         </div>
                         <div class="form-group">
-                            <label for="edit-cm-subdomain">瀛愬煙锛堝彲閫夛級</label>
+                            <label for="edit-cm-subdomain">子域（可选）</label>
                             <input type="text" id="edit-cm-subdomain" name="cm_subdomain" placeholder="test">
-                            <small style="color: var(--text-muted);">渚嬪濉啓 "test"锛岀敓鎴愮殑閭涓?xxx@test.example.com</small>
+                            <small style="color: var(--text-muted);">例如填写 <code>test</code>，将生成 <code>xxx@test.example.com</code>。</small>
                         </div>
                     </div>
+
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="edit-custom-priority">浼樺厛绾?/label>
+                            <label for="edit-custom-priority">优先级</label>
                             <input type="number" id="edit-custom-priority" name="priority" value="0" min="0">
                         </div>
                         <div class="form-group">
                             <label>
                                 <input type="checkbox" id="edit-custom-enabled" name="enabled">
-                                鍚敤鏈嶅姟
+                                启用服务
                             </label>
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">淇濆瓨</button>
-                        <button type="button" class="btn btn-secondary" id="cancel-edit-custom">鍙栨秷</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-edit-custom">取消</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- 缂栬緫 Outlook 璐︽埛妯℃€佹 -->
     <div class="modal" id="edit-outlook-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>鉁忥笍 缂栬緫 Outlook 璐︽埛</h3>
+                <h3>✏️ 编辑 Outlook 账户</h3>
                 <button class="modal-close" id="close-edit-outlook-modal">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="edit-outlook-form">
                     <input type="hidden" id="edit-outlook-id" name="id">
                     <div class="form-group">
-                        <label for="edit-outlook-email">閭鍦板潃</label>
+                        <label for="edit-outlook-email">邮箱地址</label>
                         <input type="text" id="edit-outlook-email" name="email" required placeholder="example@outlook.com">
                     </div>
                     <div class="form-group">
-                        <label for="edit-outlook-password">瀵嗙爜</label>
-                        <input type="password" id="edit-outlook-password" name="password" placeholder="鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?>
-                        <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                        <label for="edit-outlook-password">密码</label>
+                        <input type="password" id="edit-outlook-password" name="password" placeholder="留空则保持原值不变">
+                        <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                     </div>
                     <div class="form-group">
-                        <label for="edit-outlook-client-id">OAuth Client ID (鍙€?</label>
-                        <input type="text" id="edit-outlook-client-id" name="client_id" placeholder="鐢ㄤ簬 XOAUTH2 璁よ瘉">
+                        <label for="edit-outlook-client-id">OAuth Client ID（可选）</label>
+                        <input type="text" id="edit-outlook-client-id" name="client_id" placeholder="用于 XOAUTH2 认证">
                     </div>
                     <div class="form-group">
-                        <label for="edit-outlook-refresh-token">OAuth Refresh Token (鍙€?</label>
-                        <input type="text" id="edit-outlook-refresh-token" name="refresh_token" placeholder="鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?>
-                        <small style="color: var(--text-muted);">鐣欑┖鍒欎繚鎸佸師鍊间笉鍙?/small>
+                        <label for="edit-outlook-refresh-token">OAuth Refresh Token（可选）</label>
+                        <input type="text" id="edit-outlook-refresh-token" name="refresh_token" placeholder="留空则保持原值不变">
+                        <small style="color: var(--text-muted);">留空则保持原值不变。</small>
                     </div>
                     <div class="form-group">
                         <label>
@@ -729,29 +723,27 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="edit-outlook-priority">浼樺厛绾?/label>
+                            <label for="edit-outlook-priority">优先级</label>
                             <input type="number" id="edit-outlook-priority" name="priority" value="0" min="0">
                         </div>
                         <div class="form-group">
                             <label>
                                 <input type="checkbox" id="edit-outlook-enabled" name="enabled">
-                                鍚敤璐︽埛
+                                启用账户
                             </label>
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">淇濆瓨</button>
-                        <button type="button" class="btn btn-secondary" id="cancel-edit-outlook">鍙栨秷</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-edit-outlook">取消</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-
-<script src="/static/js/utils.js?v={{ static_version }}"></script>
+    <script src="/static/js/utils.js?v={{ static_version }}"></script>
     <script src="/static/js/email_services.js?v={{ static_version }}"></script>
     {% include "partials/site_footer.html" %}
 </body>
 </html>
-
