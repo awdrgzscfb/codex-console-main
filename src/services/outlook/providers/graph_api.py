@@ -248,9 +248,40 @@ class GraphAPIProvider(OutlookProvider):
             连接是否正常
         """
         try:
-            # 尝试获取一封邮件来测试连接
-            emails = self.get_recent_emails(count=1, only_unseen=False)
-            return True
+            if not self.connect():
+                return False
+
+            token = self._token_manager.get_access_token() if self._token_manager else None
+            if not token:
+                self.record_failure("Graph API 健康检查未获取到 Access Token")
+                return False
+
+            proxies = None
+            if self.config.proxy_url:
+                proxies = {"http": self.config.proxy_url, "https": self.config.proxy_url}
+
+            resp = _requests.get(
+                f"{self.GRAPH_API_BASE}/me/mailFolders/inbox/messages",
+                params={"$top": 1, "$select": "id"},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                },
+                proxies=proxies,
+                timeout=self.config.timeout,
+                impersonate="chrome110",
+            )
+            if resp.status_code == 200:
+                self.record_success()
+                return True
+
+            error = f"Graph API 健康检查失败: HTTP {resp.status_code}"
+            if resp.status_code in (401, 403):
+                error += "，可能无 Graph 权限或令牌已失效"
+            self.record_failure(error)
+            logger.warning(f"[{self.account.email}] {error}")
+            return False
         except Exception as e:
+            self.record_failure(str(e))
             logger.warning(f"[{self.account.email}] Graph API 连接测试失败: {e}")
             return False

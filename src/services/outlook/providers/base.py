@@ -78,6 +78,11 @@ class OutlookProvider(abc.ABC):
         """检查是否已连接"""
         return self._connected
 
+    @property
+    def last_error(self) -> Optional[str]:
+        """获取最近一次错误信息"""
+        return self._last_error
+
     @abc.abstractmethod
     def connect(self) -> bool:
         """

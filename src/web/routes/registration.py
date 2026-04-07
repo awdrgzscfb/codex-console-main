@@ -372,6 +372,63 @@ def _normalize_email_service_config(
     return normalized
 
 
+def _precheck_outlook_service_config(
+    config: Optional[dict],
+    *,
+    proxy_url: Optional[str] = None,
+    service_name: Optional[str] = None,
+) -> Tuple[bool, str]:
+    """在发起注册前预检 Outlook 邮箱是否可用。"""
+    from ...services.outlook.account import OutlookAccount
+    from ...services.outlook.providers.base import ProviderConfig
+    from ...services.outlook.providers.graph_api import GraphAPIProvider
+    from ...services.outlook.providers.imap_new import IMAPNewProvider
+    from ...services.outlook.providers.imap_old import IMAPOldProvider
+
+    normalized = _normalize_email_service_config(EmailServiceType.OUTLOOK, config or {}, proxy_url)
+    email = str(normalized.get("email") or service_name or "").strip().lower()
+    if not email:
+        return False, "邮箱地址缺失"
+
+    allow_imap_fallback_raw = normalized.get("allow_imap_fallback")
+    allow_imap_fallback = (
+        allow_imap_fallback_raw is True
+        or str(allow_imap_fallback_raw or "").strip().lower() in {"1", "true", "yes", "on"}
+    )
+
+    account = OutlookAccount.from_config(normalized)
+    provider_config = ProviderConfig(
+        timeout=max(10, int(normalized.get("timeout") or 30)),
+        proxy_url=str(normalized.get("proxy_url") or proxy_url or "").strip() or None,
+        health_failure_threshold=2,
+        health_disable_duration=60,
+    )
+
+    failures: List[str] = []
+
+    if account.has_oauth():
+        graph_provider = GraphAPIProvider(account, provider_config)
+        if graph_provider.test_connection():
+            return True, "graph_api 可用"
+        failures.append(f"graph_api: {graph_provider.last_error or '连接失败'}")
+    elif not allow_imap_fallback:
+        return False, "缺少 Graph OAuth 且未开启 IMAP 回退"
+
+    if allow_imap_fallback:
+        for provider_cls, provider_name in (
+            (IMAPNewProvider, "imap_new"),
+            (IMAPOldProvider, "imap_old"),
+        ):
+            provider = provider_cls(account, provider_config)
+            if provider.test_connection():
+                return True, f"{provider_name} 可用"
+            failures.append(f"{provider_name}: {provider.last_error or '连接失败'}")
+
+    if failures:
+        return False, "；".join(failures)
+    return False, "未检测到可用的收件通道"
+
+
 def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: Optional[str], email_service_config: Optional[dict], email_service_id: Optional[int] = None, log_prefix: str = "", batch_id: str = "", auto_upload_cpa: bool = False, cpa_service_ids: List[int] = None, auto_upload_sub2api: bool = False, sub2api_service_ids: List[int] = None, auto_upload_tm: bool = False, tm_service_ids: List[int] = None, auto_upload_new_api: bool = False, new_api_service_ids: List[int] = None, registration_type: str = RoleTag.CHILD.value):
     """
     在线程池中执行的同步注册任务
@@ -507,6 +564,7 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
 
                     # 找到一个未注册的 Outlook 账户
                     selected_service = None
+                    skipped_invalid_reasons: List[str] = []
                     for svc in outlook_services:
                         email = svc.config.get("email") if svc.config else None
                         if not email:
@@ -514,9 +572,16 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                         # 检查是否已在 accounts 表中注册
                         existing = _find_account_by_email(db, email)
                         if not existing:
-                            selected_service = svc
-                            logger.info(f"选择未注册的 Outlook 账户: {email}")
-                            break
+                            precheck_ok, precheck_reason = _precheck_outlook_service_config(
+                                svc.config or {},
+                                service_name=svc.name,
+                            )
+                            if precheck_ok:
+                                selected_service = svc
+                                logger.info(f"选择未注册且预检通过的 Outlook 账户: {email}")
+                                break
+                            skipped_invalid_reasons.append(f"{email}: {precheck_reason}")
+                            logger.warning(f"跳过预检失败的 Outlook 账户: {email}, 原因: {precheck_reason}")
                         else:
                             logger.info(f"跳过已注册的 Outlook 账户: {email}")
 
@@ -525,6 +590,9 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                         crud.update_registration_task(db, task_uuid, email_service_id=selected_service.id)
                         logger.info(f"使用数据库 Outlook 账户: {selected_service.name}")
                     else:
+                        detail = "；".join(skipped_invalid_reasons[:3])
+                        if detail:
+                            raise ValueError(f"没有通过预检的 Outlook 账户可用于注册: {detail}")
                         raise ValueError("所有 Outlook 账户都已注册过 OpenAI 账号，请添加新的 Outlook 账户")
                 elif service_type == EmailServiceType.TEMP_MAIL:
                     from ...database.models import EmailService as EmailServiceModel
@@ -620,6 +688,19 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                             raise ValueError("没有可用的 LuckMail 服务，请先在邮箱服务中添加并填写 API Key")
                 else:
                     config = email_service_config or {}
+
+            if service_type == EmailServiceType.OUTLOOK:
+                precheck_ok, precheck_reason = _precheck_outlook_service_config(
+                    config,
+                    proxy_url=actual_proxy_url,
+                )
+                if not precheck_ok:
+                    precheck_message = f"Outlook 邮箱预检失败，已跳过注册: {precheck_reason}"
+                    task_manager.add_log(
+                        task_uuid,
+                        f"{log_prefix} [跳过] {precheck_message}" if log_prefix else f"[跳过] {precheck_message}",
+                    )
+                    raise ValueError(precheck_message)
 
             email_service = EmailServiceFactory.create(service_type, config)
 
@@ -1422,26 +1503,40 @@ async def _start_outlook_batch_registration_internal(
     if request.mode not in ("parallel", "pipeline"):
         raise HTTPException(status_code=400, detail="模式必须为 parallel 或 pipeline")
 
-    actual_service_ids = request.service_ids
+    actual_service_ids = []
     skipped_count = 0
+    skipped_logs: List[str] = []
 
-    if request.skip_registered:
-        actual_service_ids = []
-        with get_db() as db:
-            for service_id in request.service_ids:
-                service = db.query(EmailServiceModel).filter(
-                    EmailServiceModel.id == service_id
-                ).first()
-                if not service:
-                    continue
+    with get_db() as db:
+        for service_id in request.service_ids:
+            service = db.query(EmailServiceModel).filter(
+                EmailServiceModel.id == service_id
+            ).first()
+            if not service:
+                skipped_count += 1
+                skipped_logs.append(f"[跳过] Outlook 服务不存在: service_id={service_id}")
+                continue
 
-                config = service.config or {}
-                email = config.get("email") or service.name
+            config = service.config or {}
+            email = str(config.get("email") or service.name or "").strip().lower()
+            if request.skip_registered:
                 existing_account = _find_account_by_email(db, email)
                 if existing_account:
                     skipped_count += 1
-                else:
-                    actual_service_ids.append(service_id)
+                    skipped_logs.append(f"[跳过] {email} 已在本地账号库中注册")
+                    continue
+
+            precheck_ok, precheck_reason = _precheck_outlook_service_config(
+                config,
+                proxy_url=request.proxy,
+                service_name=service.name,
+            )
+            if not precheck_ok:
+                skipped_count += 1
+                skipped_logs.append(f"[跳过] {email or service.name} 预检失败: {precheck_reason}")
+                continue
+
+            actual_service_ids.append(service_id)
 
     if not actual_service_ids:
         return OutlookBatchRegistrationResponse(
@@ -1458,11 +1553,11 @@ async def _start_outlook_batch_registration_internal(
         "completed": 0,
         "success": 0,
         "failed": 0,
-        "skipped": 0,
+        "skipped": skipped_count,
         "cancelled": False,
         "service_ids": actual_service_ids,
         "current_index": 0,
-        "logs": [],
+        "logs": skipped_logs,
         "finished": False,
     }
 
