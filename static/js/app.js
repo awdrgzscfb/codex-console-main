@@ -2070,7 +2070,7 @@ async function loadOutlookAccounts() {
 
         renderOutlookAccountsList();
 
-        addLog('info', `[系统] 已加载 ${data.total} 个 Outlook 账户 (已注册: ${data.registered_count}, 未注册: ${data.unregistered_count})`);
+        addLog('info', `[系统] 已加载 ${data.total} 个 Outlook 账户 (已注册: ${data.registered_count}, 未注册: ${data.unregistered_count}, 预检通过: ${data.valid_count || 0}, 预检失败: ${data.invalid_count || 0})`);
 
     } catch (error) {
         console.error('加载 Outlook 账户列表失败:', error);
@@ -2087,8 +2087,8 @@ function renderOutlookAccountsList() {
     }
 
     const html = outlookAccounts.map(account => `
-        <label class="outlook-account-item" style="display: flex; align-items: center; padding: var(--spacing-sm); border-bottom: 1px solid var(--border-light); cursor: pointer; ${account.is_registered ? 'opacity: 0.6;' : ''}" data-id="${account.id}" data-registered="${account.is_registered}">
-            <input type="checkbox" class="outlook-account-checkbox" value="${account.id}" ${account.is_registered ? '' : 'checked'} style="margin-right: var(--spacing-sm);">
+        <label class="outlook-account-item" style="display: flex; align-items: flex-start; padding: var(--spacing-sm); border-bottom: 1px solid var(--border-light); cursor: pointer; ${(account.is_registered || account.precheck_valid === false) ? 'opacity: 0.72;' : ''}" data-id="${account.id}" data-registered="${account.is_registered}" data-valid="${account.precheck_valid}">
+            <input type="checkbox" class="outlook-account-checkbox" value="${account.id}" ${(!account.is_registered && account.precheck_valid !== false) ? 'checked' : ''} style="margin-right: var(--spacing-sm); margin-top: 3px;">
             <div style="flex: 1;">
                 <div style="font-weight: 500;">${escapeHtml(account.email)}</div>
                 <div style="font-size: 0.75rem; color: var(--text-muted);">
@@ -2097,7 +2097,12 @@ function renderOutlookAccountsList() {
                         : '<span style="color: var(--primary-color);">未注册</span>'
                     }
                     ${account.has_oauth ? ' | OAuth' : ''}
+                    ${account.precheck_valid
+                        ? ' | <span style="color: var(--success-color);">预检通过</span>'
+                        : ` | <span style="color: var(--danger-color, #ef4444);">预检失败</span>`
+                    }
                 </div>
+                ${account.precheck_valid ? '' : `<div style="font-size: 0.75rem; color: var(--danger-color, #ef4444); margin-top: 4px;">${escapeHtml(account.precheck_reason || '邮箱不可用于注册')}</div>`}
             </div>
         </label>
     `).join('');
@@ -2117,7 +2122,17 @@ function selectUnregisteredOutlook() {
     items.forEach(item => {
         const checkbox = item.querySelector('.outlook-account-checkbox');
         const isRegistered = item.dataset.registered === 'true';
-        checkbox.checked = !isRegistered;
+        const isValid = item.dataset.valid !== 'false';
+        checkbox.checked = !isRegistered && isValid;
+    });
+}
+
+function selectInvalidOutlookAccounts() {
+    const items = document.querySelectorAll('.outlook-account-item');
+    items.forEach(item => {
+        const checkbox = item.querySelector('.outlook-account-checkbox');
+        const isValid = item.dataset.valid !== 'false';
+        checkbox.checked = !isValid;
     });
 }
 
@@ -2125,6 +2140,37 @@ function selectUnregisteredOutlook() {
 function deselectAllOutlookAccounts() {
     const checkboxes = document.querySelectorAll('.outlook-account-checkbox');
     checkboxes.forEach(cb => cb.checked = false);
+}
+
+async function deleteSelectedOutlookAccounts() {
+    const selectedIds = [];
+    const selectedEmails = [];
+    document.querySelectorAll('.outlook-account-checkbox:checked').forEach(cb => {
+        const id = parseInt(cb.value);
+        selectedIds.push(id);
+        const account = outlookAccounts.find(item => item.id === id);
+        if (account?.email) selectedEmails.push(account.email);
+    });
+
+    if (selectedIds.length === 0) {
+        toast.warning('请先勾选要删除的 Outlook 邮箱');
+        return;
+    }
+
+    const ok = await confirm(`确认删除选中的 ${selectedIds.length} 个 Outlook 邮箱吗？此操作会删除邮箱服务配置。`, '批量删除邮箱');
+    if (!ok) return;
+
+    try {
+        const result = await api.request('/email-services/outlook/batch', {
+            method: 'DELETE',
+            body: selectedIds
+        });
+        toast.success(`已删除 ${result.deleted || selectedIds.length} 个 Outlook 邮箱`);
+        addLog('warning', `[系统] 已批量删除 Outlook 邮箱: ${selectedEmails.join(', ') || selectedIds.join(', ')}`);
+        await loadOutlookAccounts();
+    } catch (error) {
+        toast.error(`批量删除失败: ${error.message}`);
+    }
 }
 
 // 处理 Outlook 批量注册

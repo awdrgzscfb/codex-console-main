@@ -208,6 +208,8 @@ class OutlookAccountForRegistration(BaseModel):
     has_oauth: bool              # 是否有 OAuth 配置
     is_registered: bool          # 是否已注册
     registered_account_id: Optional[int] = None
+    precheck_valid: bool = False
+    precheck_reason: Optional[str] = None
 
 
 class OutlookAccountsListResponse(BaseModel):
@@ -215,6 +217,8 @@ class OutlookAccountsListResponse(BaseModel):
     total: int
     registered_count: int        # 已注册数量
     unregistered_count: int      # 未注册数量
+    valid_count: int = 0
+    invalid_count: int = 0
     accounts: List[OutlookAccountForRegistration]
 
 
@@ -2191,6 +2195,8 @@ async def get_outlook_accounts_for_registration():
         accounts = []
         registered_count = 0
         unregistered_count = 0
+        valid_count = 0
+        invalid_count = 0
 
         for service in outlook_services:
             config = service.config or {}
@@ -2205,19 +2211,32 @@ async def get_outlook_accounts_for_registration():
             else:
                 unregistered_count += 1
 
+            precheck_valid, precheck_reason = _precheck_outlook_service_config(
+                config,
+                service_name=service.name,
+            )
+            if precheck_valid:
+                valid_count += 1
+            else:
+                invalid_count += 1
+
             accounts.append(OutlookAccountForRegistration(
                 id=service.id,
                 email=email,
                 name=service.name,
                 has_oauth=bool(config.get("client_id") and config.get("refresh_token")),
                 is_registered=is_registered,
-                registered_account_id=existing_account.id if existing_account else None
+                registered_account_id=existing_account.id if existing_account else None,
+                precheck_valid=precheck_valid,
+                precheck_reason=None if precheck_valid else precheck_reason,
             ))
 
         return OutlookAccountsListResponse(
             total=len(accounts),
             registered_count=registered_count,
             unregistered_count=unregistered_count,
+            valid_count=valid_count,
+            invalid_count=invalid_count,
             accounts=accounts
         )
 

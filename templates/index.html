@@ -412,6 +412,8 @@
                                         <div style="margin-top: var(--spacing-sm); display: flex; gap: var(--spacing-xs); flex-wrap: wrap;">
                                             <button type="button" class="btn btn-ghost btn-sm" onclick="selectAllOutlookAccounts()">全选</button>
                                             <button type="button" class="btn btn-ghost btn-sm" onclick="selectUnregisteredOutlook()">只选未注册</button>
+                                            <button type="button" class="btn btn-ghost btn-sm" onclick="selectInvalidOutlookAccounts()">只选预检失败</button>
+                                            <button type="button" class="btn btn-danger btn-sm" onclick="deleteSelectedOutlookAccounts()">删除选中</button>
                                             <button type="button" class="btn btn-ghost btn-sm" onclick="deselectAllOutlookAccounts()">取消全选</button>
                                         </div>
                                     </div>
@@ -844,7 +846,6 @@
     {% include "partials/site_footer.html" %}
 </body>
 </html>
-
 
 
 
